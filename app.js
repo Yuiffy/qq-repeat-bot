@@ -56,17 +56,20 @@ const waitTimeRandom = () => {
   const constWait = 1000;
   let wait = constWait;
 
-  //极速回复、快速回复、延迟回复。模拟认真聊天、
-  switch (randomInt(3)) {
+  //极速回复、快速回复。模拟认真聊天、一般聊天
+  switch (randomInt(2)) {
     case 1:
+      //极速回复，加0~1秒
       wait += randomInt(1000);
       break;
     case 2:
+      //一般聊天，加5~25秒
       wait += 5000 + randomInt(20 * 1000);
       break;
-    case 3:
-      wait += 60 * 1000 + randomInt(4 * 60 * 1000);
-      break;
+    // case 3:
+    //   //缓慢聊天，加1分~5分钟
+    //   wait += 60 * 1000 + randomInt(4 * 60 * 1000);
+    //   break;
     default:
       break;
   }
@@ -87,34 +90,87 @@ const addFuduMap = (groupId, content, name) => {
   fuduMap[fuduMapKey(groupId, content, name)] = { name, time: new Date() };
 };
 
-const fudu = (groupId, content, name, doRepeat) => {
-  let repeatFenmu = 12;
-  let repeatFenzi = 1;
-  if (content.indexOf("复读"))
-    repeatFenzi = (repeatFenzi + 1) * 2;
-  if (alreadyFudu(groupId, content, name))
-    repeatFenzi = 0;
-  // fenzi/fenmu概率复读
-  if (randomInt(repeatFenmu) <= repeatFenzi) {
-    const wait = waitTimeRandom();
-    //概率加上人名来复读
-    if (randomInt(10) <= 1) content = `${name}: ${content}`;
-    console.log(`预备 ${wait}ms 后复读 ${content}`);
-    addFuduMap(groupId, content, name);
-    setTimeout(() => {
-      doRepeat();
-      console.log(`延时${wait}ms 复读了${content}`);
-    }, wait);
+const fudu = (msg, doRepeat) => {
+  let { groupId, content, name } = msg;
+  console.log(JSON.stringify(msg));
+  return new Promise((resolve, reject) => {
+    let repeatFenmu = 12;
+    let repeatFenzi = 1;
+    if (content.indexOf("复读") !== -1)
+      repeatFenzi = (repeatFenzi + 1) * 2;
+    if (alreadyFudu(groupId, content, name))
+      repeatFenzi = 0;
+    // fenzi/fenmu概率复读
+    if (randomInt(repeatFenmu) <= repeatFenzi) {
+      const wait = waitTimeRandom();
+      //概率加上人名来复读
+      if (randomInt(10) <= 1) content = `${name}: ${content}`;
+      console.log(`概率 ${repeatFenzi}/${repeatFenmu} 预备 ${wait}ms 后复读 ${content}`);
+      addFuduMap(groupId, content, name);
+      setTimeout(() => {
+        doRepeat(content);
+        console.log(`延时${wait}ms 复读了${content}`);
+        resolve(true);
+      }, wait);
+    }else{
+      resolve(false);
+    }
+  });
+};
+
+let queue = [];
+let busyEnd = new Date().getTime();
+let busy = false;
+let busyTimeout = 0;
+
+async function busyOver(doRepeat) {
+  busy = false;
+  clearTimeout(busyTimeout);
+  const tempQueue = [...queue];
+  queue = [];
+  console.log("忙完了，该处理未读复读了！", tempQueue.length);
+  for (let i in tempQueue) {
+    const msg = tempQueue[i];
+    await Promise.resolve().then(() => fudu(msg, doRepeat));
+  }
+}
+
+const fuduQueue = (msg, doRepeat) => {
+  const nowTime = new Date().getTime();
+  if (!busy) {
+    if (randomInt(10) <= 1) {
+      //对所有聊天10%触发正忙模拟，加进队列里延迟读消息。随机加1~5分钟
+      busy = true;
+      const busyTime = randomInt(4 * 60 * 1000) + 1 * 60 * 1000;
+      busyEnd = nowTime + busyTime;
+      console.log(`触发正忙模拟，准备忙 ${busyTime}ms 后再处理复读！`);
+      busyTimeout = setTimeout(() => {
+        console.log("到时间了，timeout结束忙");
+        busyOver(doRepeat);
+      }, busyTime);
+    } else {
+      Promise.resolve().then(() => fudu(msg, doRepeat));
+    }
+  }
+
+  if (busy) {
+    console.log(`因为正忙，将 "${msg.content}" 放到了消息队列忙完再看`);
+    queue.push(msg);
+    //过了正忙时间，或者大家聊得太多，就开始处理
+    if (nowTime > busyEnd || queue.length > 20) {
+      console.log("有人说话，达到条件结束忙。", nowTime > busyEnd, queue.length);
+      busyOver(doRepeat);
+    }
   }
 };
 
 // 设置 “收到消息” 事件监听
 qq.on('msg', (msg) => {
-  console.log(JSON.stringify(msg));
+  // console.log(JSON.stringify(msg));
   const { type, groupId, content, name } = msg;
   if (content !== "") {
     if (type === "group") {
-      fudu(groupId, content, name, () => {
+      fuduQueue(msg, (content) => {
         qq.sendGroupMsg(groupId, content);
       });
     }
