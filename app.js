@@ -98,6 +98,8 @@ const fudu = (msg, doRepeat) => {
     let repeatFenzi = 1;
     if (content.indexOf("复读") !== -1)
       repeatFenzi = (repeatFenzi + 1) * 2;
+    if (content.indexOf("http") !== -1)
+      repeatFenzi = 0;
     if (alreadyFudu(groupId, content, name))
       repeatFenzi = 0;
     // fenzi/fenmu概率复读
