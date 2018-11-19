@@ -94,7 +94,7 @@ const fudu = (msg, doRepeat) => {
   let { groupId, content, name } = msg;
   console.log(JSON.stringify(msg));
   return new Promise((resolve, reject) => {
-    let repeatFenmu = 12;
+    let repeatFenmu = 24;
     let repeatFenzi = 1;
     if (content.indexOf("复读") !== -1)
       repeatFenzi = (repeatFenzi + 1) * 2;
@@ -103,10 +103,13 @@ const fudu = (msg, doRepeat) => {
     if (alreadyFudu(groupId, content, name))
       repeatFenzi = 0;
     // fenzi/fenmu概率复读
-    if (randomInt(repeatFenmu) <= repeatFenzi) {
+    if (randomInt(repeatFenmu) <= repeatFenz.envi) {
       const wait = waitTimeRandom();
       //概率加上人名来复读
-      if (randomInt(10) <= 1) content = `${name}: ${content}`;
+      if (randomInt(50) <= 1) {
+        console.log("触发加人名复读的彩蛋");
+        content = `${name}: ${content}`;
+      }
       console.log(`概率 ${repeatFenzi}/${repeatFenmu} 预备 ${wait}ms 后复读 ${content}`);
       addFuduMap(groupId, content, name);
       setTimeout(() => {
@@ -114,7 +117,7 @@ const fudu = (msg, doRepeat) => {
         console.log(`延时${wait}ms 复读了${content}`);
         resolve(true);
       }, wait);
-    }else{
+    } else {
       resolve(false);
     }
   });
@@ -140,8 +143,8 @@ async function busyOver(doRepeat) {
 const fuduQueue = (msg, doRepeat) => {
   const nowTime = new Date().getTime();
   if (!busy) {
-    if (randomInt(10) <= 1) {
-      //对所有聊天10%触发正忙模拟，加进队列里延迟读消息。随机加1~5分钟
+    if (randomInt(50) <= 1) {
+      //对所有聊天2%触发正忙模拟，加进队列里延迟读消息。随机加1~5分钟
       busy = true;
       const busyTime = randomInt(4 * 60 * 1000) + 1 * 60 * 1000;
       busyEnd = nowTime + busyTime;
@@ -169,12 +172,28 @@ const fuduQueue = (msg, doRepeat) => {
 // 设置 “收到消息” 事件监听
 qq.on('msg', (msg) => {
   // console.log(JSON.stringify(msg));
-  const { type, groupId, content, name } = msg;
+  const { type, groupId, content, name, id } = msg;
   if (content !== "") {
     if (type === "group") {
-      fuduQueue(msg, (content) => {
+      if (id === 3014380580) {
+        console.log("是系统消息，忽略", id);
+      } else {
+        fuduQueue(msg, (content) => {
+          qq.sendGroupMsg(groupId, content);
+        });
+      }
+    }
+  } else {
+    //发图
+    if (id === 2433101351) {
+      //是兰溪发图
+      if (randomInt(3) <= 1) {
+        // 1/3嘲讽
+        const sayType = randomInt(4);
+        const taunts = ['这图火星了吗？', `${'h'.repeat(randomInt(10) + 5)}这图太好笑了`, '6'.repeat(randomInt(10) + 5), 'pr'.repeat(randomInt(5) + 2)];
+        const content = taunts[sayType - 1];
         qq.sendGroupMsg(groupId, content);
-      });
+      }
     }
   }
 });
